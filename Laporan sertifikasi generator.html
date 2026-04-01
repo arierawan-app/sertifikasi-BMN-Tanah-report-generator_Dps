@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generator Laporan Sertifikasi BMN</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .tab-active { border-bottom: 2px solid #2563eb; color: #1d4ed8; font-weight: 600; }
+        .tab-inactive { color: #6b7280; }
+        .tab-inactive:hover { color: #374151; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const defaultData = {
+            informasiUmum: {
+                // Hidden default values for DOCX
+                nomor: "ND-200/KNL.1401/2026",
+                tanggal: "2 Maret 2026",
+                yth: "Kepala Kantor Wilayah Direktorat Jenderal Kekayaan Negara Bali dan Nusa Tenggara",
+                dari: "Kepala Kantor Pelayanan Kekayaan Negara Dan Lelang Denpasar",
+                sifat: "Segera",
+                lampiran: "1 (satu) Set",
+                penandatangan: "I Ketut Arimbawa",
+                
+                // Visible dynamic values
+                periodeLaporan: "2026-02-28",
+                tanggalAkhirBulan: "28",
+                bulan: "Februari",
+                tahun: "2026",
+                hal: "Penyampaian Laporan Sertifikasi Barang Milik Negara (BMN) Berupa Tanah pada KPKNL Denpasar s.d Februari 2026",
+            },
+            tabelUtama: {
+                k1: "2", k2: "2", k3: "373", k4: "0", targetQ1: "16",
+                totTarget: "377", kompB: "76", kompC: "5", total: "458",
+                capaianQ1: "16,98% (K3=4 Bidang)", capaianTahunan: "0,85% (K3=4 Bidang)",
+                sdQ1: "5%", prognosa: "Capaian berasal dari tambahan capaian K1, K3 dan K4 (validasi data SIMAN)"
+            },
+            k1: [
+                { jumlah: "2", kendala: "Target ialah 1 bidang tanah pada KPP Pratama Gianyar dan 1 bidang tanah pada BNN Badung", halLalu: "Melakukan koodinasi dengan satker. Progress pada KPP Pratama Gianyar ialah dalam melengkapi tanda tangan perangkat desa dan pemilik tanah yang berbatasan. Pada BNN Badung dalam proses pembuatan KKPR", rencana: "Koordinasi dengan satuan kerja dan kantah setempat terkait progress penyelesaian sertifikasi", ket: "" }
+            ],
+            k2: [
+                { jumlah: "2", kendala: "Target ialah 1 bidang tanah pada Pengadilan Tinggi Agama Bali dan 1 bidang Universitas Pendidikan Ganesha", halLalu: "Koordinasi dengan Kanwil DJKN Bali dan Nusra terkait dengan dokumen perolehan/history kepemilikan aset BDL", rencana: "Koordinasi dengan Satker terkait progress penyelesaian sertifikasi", ket: "" }
+            ],
+            k3: [
+                { jumlah: "454", kendala: "Sebagian besar permasalahan pada target BWS Bali Penida da yaitu yaitu batas-batas tidak ditemukan", halLalu: "Koordinasi dengan BWS Bali Penida terkait dengan identifikasi target NUP berdasarkan data BMN pada nomenklatur baru", rencana: "Koordinasi dengan Kanwil DJKN Bali dan Nusra dan Kanwil ATR/BPN terkait dengan penyelesaian tanah pada Kodam IX Udayana", ket: "" }
+            ],
+            hukum: [
+                { jumlah: "76", kendala: "Sebanyak 51 bidang permasalahannya berupa Bidang tanah dikuasai masyarakat/pihak lain, 13 Bidang tanah beririsan dengan tanah pihak lain, 10 bidang terdapat sengketa, dan 2 bidang Pencatatan Ganda dengan BUMN", halLalu: "Koordinasi dengan satker terkait", rencana: "Koordinasi dengan Kanwil DJKN Bali dan Nusra satuan kerja dan Seksi hukum dan informasi terkait upaya penyelesaian", ket: "" }
+            ],
+            adm: [
+                { jumlah: "5", kendala: "Sebanyak 1 bidang permasalahannya berupa objek tidak dapat ditemukan, 2 bidang terkena abrasi, dan 2 bidang salah catat", halLalu: "Koordinasi dengan Disnav Benoa terkait tindak lanjut penyelesaian salah catat", rencana: "Koordinasi dengan satuan kerja", ket: "" }
+            ]
+        };
+
+        const App = () => {
+            const [activeTab, setActiveTab] = useState('umum');
+            const [data, setData] = useState(defaultData);
+
+            const handleDateChange = (e) => {
+                const dateVal = e.target.value;
+                if (!dateVal) {
+                    setData({ ...data, informasiUmum: { ...data.informasiUmum, periodeLaporan: dateVal } });
+                    return;
+                }
+                const [year, month, day] = dateVal.split('-');
+                const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                const monthName = monthNames[parseInt(month, 10) - 1];
+                
+                const newHal = `Penyampaian Laporan Sertifikasi Barang Milik Negara (BMN) Berupa Tanah pada KPKNL Denpasar s.d ${monthName} ${year}`;
+                
+                setData({
+                    ...data,
+                    informasiUmum: {
+                        ...data.informasiUmum,
+                        periodeLaporan: dateVal,
+                        tanggalAkhirBulan: parseInt(day, 10).toString(),
+                        bulan: monthName,
+                        tahun: year,
+                        hal: newHal
+                    }
+                });
+            };
+
+            const handleUtamaChange = (e) => {
+                setData({ ...data, tabelUtama: { ...data.tabelUtama, [e.target.name]: e.target.value } });
+            };
+
+            const handleDetailChange = (kategori, index, field, value) => {
+                const newData = { ...data };
+                newData[kategori][index][field] = value;
+                setData(newData);
+            };
+
+            const addRow = (kategori) => {
+                const newData = { ...data };
+                newData[kategori].push({ jumlah: "", kendala: "", halLalu: "", rencana: "", ket: "" });
+                setData(newData);
+            };
+
+            const removeRow = (kategori, index) => {
+                const newData = { ...data };
+                newData[kategori].splice(index, 1);
+                setData(newData);
+            };
+
+            const generateDocument = () => {
+                const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalAlign, ShadingType } = window.docx;
+
+                const noBorder = {
+                    top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+                    bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+                    left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+                    right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+                };
+
+                // Perhitungan nama bulan berikutnya untuk Rencana Aksi
+                const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+                const currentMonthIdx = monthNames.indexOf(data.informasiUmum.bulan);
+                let nextMonthNameStr = "";
+                if (currentMonthIdx !== -1) {
+                    const nextMonthIdx = (currentMonthIdx + 1) % 12;
+                    const nextYear = currentMonthIdx === 11 ? parseInt(data.informasiUmum.tahun) + 1 : parseInt(data.informasiUmum.tahun);
+                    nextMonthNameStr = `${monthNames[nextMonthIdx]} ${nextYear}`;
+                } else {
+                    nextMonthNameStr = "Bulan Depan";
+                }
+
+                const createText = (text, bold = false, size = 22, alignment = AlignmentType.LEFT) => {
+                    return new Paragraph({
+                        children: [new TextRun({ text: text, bold: bold, size: size, font: "Arial" })],
+                        alignment: alignment,
+                        spacing: { after: 100 }
+                    });
+                };
+
+                const createCell = (text, options = {}) => {
+                    return new TableCell({
+                        children: [new Paragraph({ 
+                            children: [new TextRun({ text: text || "-", bold: options.bold || false, size: 20, font: "Arial" })], 
+                            alignment: options.align || AlignmentType.LEFT,
+                            spacing: { line: 240 }
+                        })],
+                        verticalAlign: options.vAlign || VerticalAlign.CENTER,
+                        shading: options.shading || undefined,
+                        margins: { top: 100, bottom: 100, left: 100, right: 100 },
+                        ...(options.widthPercent && { width: { size: options.widthPercent, type: WidthType.PERCENTAGE } })
+                    });
+                };
+
+                const renderDetailTable = (rows) => {
+                    const headerShading = { fill: "D9D9D9", type: ShadingType.CLEAR, color: "auto" };
+
+                    const tableRows = [
+                        new TableRow({
+                            tableHeader: true,
+                            children: [
+                                createCell("No", { bold: true, widthPercent: 5, align: AlignmentType.CENTER, shading: headerShading }),
+                                createCell("Jumlah Bidang", { bold: true, widthPercent: 10, align: AlignmentType.CENTER, shading: headerShading }),
+                                createCell("Kendala dan Permasalahan", { bold: true, widthPercent: 25, align: AlignmentType.CENTER, shading: headerShading }),
+                                createCell(`Hal yang sudah dilaksanakan bulan ${data.informasiUmum.bulan} ${data.informasiUmum.tahun}`, { bold: true, widthPercent: 25, align: AlignmentType.CENTER, shading: headerShading }),
+                                createCell(`Rencana aksi bulan ${nextMonthNameStr}`, { bold: true, widthPercent: 25, align: AlignmentType.CENTER, shading: headerShading }),
+                                createCell("Keterangan", { bold: true, widthPercent: 10, align: AlignmentType.CENTER, shading: headerShading }),
+                            ]
+                        })
+                    ];
+
+                    rows.forEach((row, idx) => {
+                        tableRows.push(new TableRow({
+                            children: [
+                                createCell((idx + 1).toString(), { align: AlignmentType.CENTER, widthPercent: 5 }),
+                                createCell(row.jumlah, { align: AlignmentType.CENTER, widthPercent: 10 }),
+                                createCell(row.kendala, { align: AlignmentType.JUSTIFIED, widthPercent: 25 }),
+                                createCell(row.halLalu, { align: AlignmentType.JUSTIFIED, widthPercent: 25 }),
+                                createCell(row.rencana, { align: AlignmentType.JUSTIFIED, widthPercent: 25 }),
+                                createCell(row.ket, { align: AlignmentType.CENTER, widthPercent: 10 }),
+                            ]
+                        }));
+                    });
+
+                    return new Table({
+                        rows: tableRows,
+                        width: { size: 100, type: WidthType.PERCENTAGE },
+                    });
+                };
+
+                const doc = new Document({
+                    sections: [{
+                        properties: {
+                            page: { margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 } } // 2cm margins
+                        },
+                        children: [
+                            // Header Kop
+                            createText("KEMENTERIAN KEUANGAN REPUBLIK INDONESIA", false, 24, AlignmentType.CENTER),
+                            createText("DIREKTORAT JENDERAL KEKAYAAN NEGARA", false, 24, AlignmentType.CENTER),
+                            createText("KANTOR WILAYAH DIREKTORAT JENDERAL KEKAYAAN NEGARA BALI DAN NUSA TENGGARA", false, 24, AlignmentType.CENTER),
+                            createText("KANTOR PELAYANAN KEKAYAAN NEGARA DAN LELANG DENPASAR", true, 24, AlignmentType.CENTER),
+                            new Paragraph({
+                                children: [new TextRun({ text: "GEDUNG KEUANGAN NEGARA I, JALAN DR. KUSUMAATMAJA, DENPASAR, BALI 80235;", size: 18, font: "Arial" })],
+                                alignment: AlignmentType.CENTER
+                            }),
+                            new Paragraph({
+                                children: [new TextRun({ text: "TELEPON (0361) 229151, 234623; FAKSIMILE (0361) 229150; LAMAN www.djkn.kemenkeu.go.id", size: 18, font: "Arial" })],
+                                alignment: AlignmentType.CENTER,
+                                border: { bottom: { color: "000000", space: 1, style: BorderStyle.THICK, size: 12 } },
+                                spacing: { after: 300, line: 240 }
+                            }),
+
+                            // Nota Dinas Title
+                            new Paragraph({ spacing: { before: 200 } }),
+                            createText("NOTA DINAS", true, 24, AlignmentType.CENTER),
+                            createText(`NOMOR ${data.informasiUmum.nomor}`, false, 22, AlignmentType.CENTER),
+                            new Paragraph({ spacing: { after: 300 } }),
+
+                            // Metadata Table
+                            new Table({
+                                borders: noBorder,
+                                width: { size: 100, type: WidthType.PERCENTAGE },
+                                rows: [
+                                    ["Yth.", ":", data.informasiUmum.yth],
+                                    ["Dari", ":", data.informasiUmum.dari],
+                                    ["Sifat", ":", data.informasiUmum.sifat],
+                                    ["Lampiran", ":", data.informasiUmum.lampiran],
+                                    ["Hal", ":", data.informasiUmum.hal],
+                                    ["Tanggal", ":", data.informasiUmum.tanggal],
+                                ].map(row => new TableRow({
+                                    children: [
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: row[0], font: "Arial", size: 22 })] })], width: { size: 15, type: WidthType.PERCENTAGE }, borders: noBorder }),
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: row[1], font: "Arial", size: 22 })] })], width: { size: 3, type: WidthType.PERCENTAGE }, borders: noBorder }),
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: row[2], font: "Arial", size: 22 })], alignment: AlignmentType.JUSTIFIED })], width: { size: 82, type: WidthType.PERCENTAGE }, borders: noBorder })
+                                    ]
+                                }))
+                            }),
+                            new Paragraph({ spacing: { after: 300 } }),
+                            new Paragraph({
+                                border: { top: { color: "000000", space: 1, style: BorderStyle.SINGLE, size: 6 } },
+                                spacing: { after: 200 }
+                            }),
+
+                            // Body Paragraph 1
+                            new Paragraph({
+                                children: [new TextRun({ text: "Berkenaan dengan pokok surat tersebut di atas, dapat kami sampaikan hal-hal sebagai berikut:", font: "Arial", size: 22 })],
+                                spacing: { after: 200 }, alignment: AlignmentType.JUSTIFIED
+                            }),
+                            new Paragraph({
+                                children: [new TextRun({ text: `1. Target sertifikasi BMN berupa tanah TA ${data.informasiUmum.tahun} pada KPKNL Denpasar dan capaian kinerja sertifikasi s.d ${data.informasiUmum.tanggalAkhirBulan} ${data.informasiUmum.bulan} ${data.informasiUmum.tahun} ialah sebagai berikut:`, font: "Arial", size: 22 })],
+                                spacing: { after: 200 }, alignment: AlignmentType.JUSTIFIED
+                            }),
+
+                            // Main Table
+                            new Table({
+                                width: { size: 100, type: WidthType.PERCENTAGE },
+                                rows: [
+                                    new TableRow({
+                                        tableHeader: true,
+                                        children: ["K1", "K2", "K3", "K4", "TARGET Q1", "TOT. TARGET", "Komp B Hukum", "Komp C Adm", "Total", "CAPAIAN Q1", "CAPAIAN TAHUNAN", "S.D. Q1", "PROGNOSA Penjelasan"].map(h => createCell(h, { bold: true, align: AlignmentType.CENTER, shading: { fill: "D9D9D9", type: ShadingType.CLEAR, color: "auto" } }))
+                                    }),
+                                    new TableRow({
+                                        children: [
+                                            createCell(data.tabelUtama.k1, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.k2, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.k3, { align: AlignmentType.CENTER }),
+                                            createCell(data.tabelUtama.k4, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.targetQ1, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.totTarget, { align: AlignmentType.CENTER }),
+                                            createCell(data.tabelUtama.kompB, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.kompC, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.total, { align: AlignmentType.CENTER }),
+                                            createCell(data.tabelUtama.capaianQ1, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.capaianTahunan, { align: AlignmentType.CENTER }), 
+                                            createCell(data.tabelUtama.sdQ1, { align: AlignmentType.CENTER }),
+                                            createCell(data.tabelUtama.prognosa, { align: AlignmentType.JUSTIFIED })
+                                        ]
+                                    })
+                                ]
+                            }),
+                            new Paragraph({ spacing: { after: 300 } }),
+                            new Paragraph({ children: [new TextRun({ text: "Terlampir disampaikan detail pada tiap kategori:", font: "Arial", size: 22 })], spacing: { after: 200 } }),
+
+                            // Detail Tables
+                            createText("a. Target K1", true, 22),
+                            renderDetailTable(data.k1),
+                            new Paragraph({ spacing: { after: 200 } }),
+
+                            createText("b. Target K2", true, 22),
+                            renderDetailTable(data.k2),
+                            new Paragraph({ spacing: { after: 200 } }),
+
+                            createText("c. Target K3", true, 22),
+                            renderDetailTable(data.k3),
+                            new Paragraph({ spacing: { after: 200 } }),
+
+                            createText("d. Target Penyelesaian Hukum", true, 22),
+                            renderDetailTable(data.hukum),
+                            new Paragraph({ spacing: { after: 200 } }),
+
+                            createText("e. Target Penatausahaan", true, 22),
+                            renderDetailTable(data.adm),
+                            new Paragraph({ spacing: { after: 400 } }),
+
+                            // Closing
+                            new Paragraph({
+                                children: [new TextRun({ text: "Kantor Pelayanan Kekayaan Negara dan Lelang Denpasar berkomitmen untuk selalu menjaga integritas, bersinergi dengan seluruh pemangku kepentingan serta terus berinovasi dalam rangka meningkatkan kualitas pelayanan lebih baik dengan semangat MELASTI (Melayani dengan Sepenuh Hati).", font: "Arial", size: 22 })],
+                                spacing: { after: 200 }, alignment: AlignmentType.JUSTIFIED
+                            }),
+                            new Paragraph({
+                                children: [new TextRun({ text: "Demikian dapat kami sampaikan, atas perhatian dan arahan Bapak, kami ucapkan terima kasih.", font: "Arial", size: 22 })],
+                                spacing: { after: 400 }, alignment: AlignmentType.JUSTIFIED
+                            }),
+
+                            // Signatures & Footer
+                            new Table({
+                                borders: noBorder,
+                                width: { size: 100, type: WidthType.PERCENTAGE },
+                                rows: [
+                                    new TableRow({
+                                        children: [
+                                            new TableCell({ children: [], width: { size: 60, type: WidthType.PERCENTAGE }, borders: noBorder }),
+                                            new TableCell({
+                                                children: [
+                                                    new Paragraph({ children: [new TextRun({ text: "Ditandatangani secara elektronik", font: "Arial", size: 22 })], spacing: { after: 800 } }),
+                                                    new Paragraph({ children: [new TextRun({ text: data.informasiUmum.penandatangan, font: "Arial", size: 22, bold: true })] })
+                                                ],
+                                                width: { size: 40, type: WidthType.PERCENTAGE }, borders: noBorder
+                                            })
+                                        ]
+                                    })
+                                ]
+                            }),
+                            
+                            new Paragraph({ spacing: { after: 300 } }),
+                            new Paragraph({ children: [new TextRun({ text: "Tembusan:", font: "Arial", size: 20 })] }),
+                            new Paragraph({ children: [new TextRun({ text: "1. Direktur Perumusan Kebijakan Kekayaan Negara", font: "Arial", size: 20 })] }),
+                            new Paragraph({ children: [new TextRun({ text: "2. Kepala Bidang Pengelolaan Kekayaan Negara", font: "Arial", size: 20 })] }),
+                            new Paragraph({ children: [new TextRun({ text: "3. Kepala Seksi Kepatuhan Internal", font: "Arial", size: 20 })], spacing: { after: 400 } }),
+
+                            // QR Footer note
+                            new Paragraph({
+                                children: [new TextRun({ text: "Dokumen ini telah ditandatangani menggunakan sertifikat elektronik yang diterbitkan oleh Balai Besar Sertifikasi Elektronik (BSrE), BSSN. Untuk memastikan keaslian tanda tangan elektronik, silakan pindai QR Code pada laman https://satu.kemenkeu.go.id atau unggah dokumen pada laman https://tte.komdigi.go.id/verifyPDF", font: "Arial", size: 16, italics: true })],
+                                alignment: AlignmentType.JUSTIFIED
+                            }),
+                        ]
+                    }]
+                });
+
+                Packer.toBlob(doc).then((blob) => {
+                    saveAs(blob, `Laporan_Sertifikasi_BMN_${data.informasiUmum.bulan}_${data.informasiUmum.tahun}.docx`);
+                });
+            };
+
+            const renderInput = (label, name, value, onChange, placeholder = "", isTextarea = false) => (
+                <div className="mb-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                    {isTextarea ? (
+                        <textarea
+                            name={name}
+                            value={value}
+                            onChange={onChange}
+                            placeholder={placeholder}
+                            rows="3"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    ) : (
+                        <input
+                            type="text"
+                            name={name}
+                            value={value}
+                            onChange={onChange}
+                            placeholder={placeholder}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    )}
+                </div>
+            );
+
+            const renderDetailSection = (title, key) => (
+                <div className="space-y-6">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">{title}</h3>
+                        <button onClick={() => addRow(key)} className="bg-green-600 text-white px-3 py-1.5 rounded-md text-sm hover:bg-green-700 flex items-center">
+                            <i className="ph ph-plus mr-1"></i> Tambah Baris
+                        </button>
+                    </div>
+                    {data[key].map((item, index) => (
+                        <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
+                            {data[key].length > 1 && (
+                                <button onClick={() => removeRow(key, index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 p-1">
+                                    <i className="ph ph-trash text-xl"></i>
+                                </button>
+                            )}
+                            <h4 className="font-medium text-gray-700 mb-3">Baris {index + 1}</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Jumlah Bidang</label>
+                                    <input type="text" value={item.jumlah} onChange={(e) => handleDetailChange(key, index, 'jumlah', e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Keterangan Tambahan</label>
+                                    <input type="text" value={item.ket} onChange={(e) => handleDetailChange(key, index, 'ket', e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Kendala & Permasalahan</label>
+                                    <textarea value={item.kendala} onChange={(e) => handleDetailChange(key, index, 'kendala', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Hal yang sudah dilaksanakan bulan ini</label>
+                                    <textarea value={item.halLalu} onChange={(e) => handleDetailChange(key, index, 'halLalu', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-medium text-gray-700 mb-1">Rencana aksi bulan depan</label>
+                                    <textarea value={item.rencana} onChange={(e) => handleDetailChange(key, index, 'rencana', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            );
+
+            return (
+                <div className="min-h-screen flex flex-col items-center py-10 px-4 sm:px-6 lg:px-8">
+                    <div className="w-full max-w-5xl bg-white shadow-xl rounded-xl overflow-hidden">
+                        
+                        {/* Header */}
+                        <div className="bg-blue-800 px-6 py-5 text-white flex justify-between items-center">
+                            <div>
+                                <h1 className="text-2xl font-bold flex items-center">
+                                    <i className="ph ph-file-doc mr-2 text-3xl"></i>
+                                    Generator Nota Dinas BMN
+                                </h1>
+                                <p className="text-blue-200 mt-1 text-sm">Otomatisasi pembuatan laporan sertifikasi bulanan (DOCX)</p>
+                            </div>
+                            <button onClick={generateDocument} className="bg-white text-blue-800 font-semibold px-5 py-2.5 rounded-lg hover:bg-blue-50 flex items-center shadow-sm transition-all">
+                                <i className="ph ph-download-simple mr-2 text-lg"></i>
+                                Unduh DOCX
+                            </button>
+                        </div>
+
+                        {/* Navigation Tabs */}
+                        <div className="flex border-b border-gray-200 overflow-x-auto bg-gray-50 px-2">
+                            {[
+                                { id: 'umum', label: 'Informasi Umum', icon: 'ph-info' },
+                                { id: 'utama', label: 'Tabel Ringkasan', icon: 'ph-table' },
+                                { id: 'k1k2k3', label: 'Detail K1/K2/K3', icon: 'ph-list-bullets' },
+                                { id: 'hukumAdm', label: 'Hukum & Penatausahaan', icon: 'ph-scales' }
+                            ].map(tab => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id)}
+                                    className={`px-6 py-4 flex items-center whitespace-nowrap text-sm font-medium transition-colors ${activeTab === tab.id ? 'tab-active bg-white' : 'tab-inactive'}`}
+                                >
+                                    <i className={`ph ${tab.icon} mr-2 text-lg`}></i>
+                                    {tab.label}
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Content Area */}
+                        <div className="p-6 md:p-8 bg-white min-h-[500px]">
+                            
+                            {/* TAB: INFORMASI UMUM */}
+                            {activeTab === 'umum' && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                    <div className="md:col-span-2 text-lg font-semibold text-gray-800 border-b pb-2 mb-2">Parameter Laporan</div>
+                                    
+                                    <div className="mb-4 md:col-span-2">
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Periode Laporan (Pilih Tanggal)</label>
+                                        <input
+                                            type="date"
+                                            name="periodeLaporan"
+                                            value={data.informasiUmum.periodeLaporan}
+                                            onChange={handleDateChange}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                                        />
+                                        <p className="text-xs text-gray-500 mt-1">Tanggal ini akan otomatis mengisi Bulan, Tahun, dan Tanggal s.d di dalam dokumen.</p>
+                                    </div>
+                                    
+                                    <div className="md:col-span-2 mt-4">
+                                        <div className="text-lg font-semibold text-gray-800 border-b pb-2 mb-4">Informasi Tambahan</div>
+                                        <div className="mb-4">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Hal / Perihal (Otomatis)</label>
+                                            <textarea
+                                                readOnly
+                                                value={data.informasiUmum.hal}
+                                                rows="3"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600 focus:outline-none cursor-not-allowed"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB: TABEL UTAMA */}
+                            {activeTab === 'utama' && (
+                                <div>
+                                    <div className="text-lg font-semibold text-gray-800 border-b pb-2 mb-6">Ringkasan Target & Capaian (Tabel Poin 1)</div>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                        {renderInput("K1", "k1", data.tabelUtama.k1, handleUtamaChange)}
+                                        {renderInput("K2", "k2", data.tabelUtama.k2, handleUtamaChange)}
+                                        {renderInput("K3", "k3", data.tabelUtama.k3, handleUtamaChange)}
+                                        {renderInput("K4", "k4", data.tabelUtama.k4, handleUtamaChange)}
+                                        
+                                        {renderInput("TARGET Q1", "targetQ1", data.tabelUtama.targetQ1, handleUtamaChange)}
+                                        {renderInput("TOT. TARGET", "totTarget", data.tabelUtama.totTarget, handleUtamaChange)}
+                                        {renderInput("Komp B (Hukum)", "kompB", data.tabelUtama.kompB, handleUtamaChange)}
+                                        {renderInput("Komp C (Adm)", "kompC", data.tabelUtama.kompC, handleUtamaChange)}
+                                        
+                                        {renderInput("Total", "total", data.tabelUtama.total, handleUtamaChange)}
+                                        {renderInput("CAPAIAN Q1", "capaianQ1", data.tabelUtama.capaianQ1, handleUtamaChange)}
+                                        {renderInput("CAPAIAN TAHUNAN", "capaianTahunan", data.tabelUtama.capaianTahunan, handleUtamaChange)}
+                                        {renderInput("S.D. Q1", "sdQ1", data.tabelUtama.sdQ1, handleUtamaChange)}
+                                        
+                                        <div className="md:col-span-4">
+                                            {renderInput("PROGNOSA / Penjelasan", "prognosa", data.tabelUtama.prognosa, handleUtamaChange, "", true)}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB: DETAIL K1, K2, K3 */}
+                            {activeTab === 'k1k2k3' && (
+                                <div className="space-y-10">
+                                    {renderDetailSection("Detail Target K1", "k1")}
+                                    <hr className="border-gray-300 border-dashed" />
+                                    {renderDetailSection("Detail Target K2", "k2")}
+                                    <hr className="border-gray-300 border-dashed" />
+                                    {renderDetailSection("Detail Target K3", "k3")}
+                                </div>
+                            )}
+
+                            {/* TAB: HUKUM & ADM */}
+                            {activeTab === 'hukumAdm' && (
+                                <div className="space-y-10">
+                                    {renderDetailSection("Detail Penyelesaian Hukum", "hukum")}
+                                    <hr className="border-gray-300 border-dashed" />
+                                    {renderDetailSection("Detail Penatausahaan (Administrasi)", "adm")}
+                                </div>
+                            )}
+
+                        </div>
+                        
+                        {/* Footer area */}
+                        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 text-sm text-gray-500 flex justify-between items-center">
+                            <span>Pastikan seluruh isian sudah lengkap sebelum mengunduh.</span>
+                            <button onClick={generateDocument} className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition font-medium">
+                                Generate DOCX
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
