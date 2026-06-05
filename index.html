@@ -13,7 +13,6 @@
     <script src="https://cdn.tailwindcss.com"></script>
     
     <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
 
@@ -29,6 +28,16 @@
 
     <script type="text/babel">
         const { useState, useEffect } = React;
+
+        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+        const getQuarterLabel = (informasiUmum) => {
+            const monthFromDate = parseInt((informasiUmum.periodeLaporan || "").split("-")[1], 10);
+            const monthFromName = monthNames.indexOf(informasiUmum.bulan) + 1;
+            const monthNumber = monthFromDate || monthFromName || 1;
+
+            return `Q${Math.ceil(monthNumber / 3)}`;
+        };
 
         const defaultData = {
             informasiUmum: {
@@ -74,6 +83,17 @@
         const App = () => {
             const [activeTab, setActiveTab] = useState('umum');
             const [data, setData] = useState(defaultData);
+            const [downloadInfo, setDownloadInfo] = useState(null);
+            const [exportStatus, setExportStatus] = useState("");
+            const quarterLabel = getQuarterLabel(data.informasiUmum);
+
+            useEffect(() => {
+                return () => {
+                    if (downloadInfo?.url) {
+                        URL.revokeObjectURL(downloadInfo.url);
+                    }
+                };
+            }, [downloadInfo]);
 
             const handleDateChange = (e) => {
                 const dateVal = e.target.value;
@@ -82,7 +102,6 @@
                     return;
                 }
                 const [year, month, day] = dateVal.split('-');
-                const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
                 const monthName = monthNames[parseInt(month, 10) - 1];
                 
                 const newHal = `Penyampaian Laporan Sertifikasi Barang Milik Negara (BMN) Berupa Tanah pada KPKNL Denpasar s.d ${monthName} ${year}`;
@@ -123,6 +142,13 @@
             };
 
             const generateDocument = () => {
+                if (!window.docx) {
+                    alert("Library pembuat DOCX belum berhasil dimuat. Pastikan koneksi internet aktif, lalu muat ulang halaman.");
+                    return;
+                }
+
+                setExportStatus("Membuat DOCX...");
+
                 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalAlign, ShadingType } = window.docx;
 
                 const noBorder = {
@@ -132,13 +158,26 @@
                     right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
                 };
 
+                const safeText = (value, fallback = "-") => {
+                    const text = value === null || value === undefined ? "" : String(value).trim();
+                    return text || fallback;
+                };
+
+                const safeFileNamePart = (value, fallback) => {
+                    return safeText(value, fallback).replace(/[\\/:*?"<>|]+/g, "_").replace(/\s+/g, "_");
+                };
+
+                const reportDay = safeText(data.informasiUmum.tanggalAkhirBulan);
+                const reportMonth = safeText(data.informasiUmum.bulan, "Bulan");
+                const reportYear = safeText(data.informasiUmum.tahun, "Tahun");
+
                 // Perhitungan nama bulan berikutnya untuk Rencana Aksi
-                const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
                 const currentMonthIdx = monthNames.indexOf(data.informasiUmum.bulan);
                 let nextMonthNameStr = "";
                 if (currentMonthIdx !== -1) {
                     const nextMonthIdx = (currentMonthIdx + 1) % 12;
-                    const nextYear = currentMonthIdx === 11 ? parseInt(data.informasiUmum.tahun) + 1 : parseInt(data.informasiUmum.tahun);
+                    const yearNumber = parseInt(data.informasiUmum.tahun, 10);
+                    const nextYear = currentMonthIdx === 11 && !Number.isNaN(yearNumber) ? yearNumber + 1 : reportYear;
                     nextMonthNameStr = `${monthNames[nextMonthIdx]} ${nextYear}`;
                 } else {
                     nextMonthNameStr = "Bulan Depan";
@@ -146,7 +185,7 @@
 
                 const createText = (text, bold = false, size = 22, alignment = AlignmentType.LEFT) => {
                     return new Paragraph({
-                        children: [new TextRun({ text: text, bold: bold, size: size, font: "Arial" })],
+                        children: [new TextRun({ text: safeText(text, ""), bold: bold, size: size, font: "Arial" })],
                         alignment: alignment,
                         spacing: { after: 100 }
                     });
@@ -155,7 +194,7 @@
                 const createCell = (text, options = {}) => {
                     return new TableCell({
                         children: [new Paragraph({ 
-                            children: [new TextRun({ text: text || "-", bold: options.bold || false, size: 20, font: "Arial" })], 
+                            children: [new TextRun({ text: safeText(text), bold: options.bold || false, size: 20, font: "Arial" })], 
                             alignment: options.align || AlignmentType.LEFT,
                             spacing: { line: 240 }
                         })],
@@ -176,7 +215,7 @@
                                 createCell("No", { bold: true, widthPercent: 5, align: AlignmentType.CENTER, shading: headerShading }),
                                 createCell("Jumlah Bidang", { bold: true, widthPercent: 10, align: AlignmentType.CENTER, shading: headerShading }),
                                 createCell("Kendala dan Permasalahan", { bold: true, widthPercent: 25, align: AlignmentType.CENTER, shading: headerShading }),
-                                createCell(`Hal yang sudah dilaksanakan bulan ${data.informasiUmum.bulan} ${data.informasiUmum.tahun}`, { bold: true, widthPercent: 25, align: AlignmentType.CENTER, shading: headerShading }),
+                                createCell(`Hal yang sudah dilaksanakan bulan ${reportMonth} ${reportYear}`, { bold: true, widthPercent: 25, align: AlignmentType.CENTER, shading: headerShading }),
                                 createCell(`Rencana aksi bulan ${nextMonthNameStr}`, { bold: true, widthPercent: 25, align: AlignmentType.CENTER, shading: headerShading }),
                                 createCell("Keterangan", { bold: true, widthPercent: 10, align: AlignmentType.CENTER, shading: headerShading }),
                             ]
@@ -245,7 +284,7 @@
                                     children: [
                                         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: row[0], font: "Arial", size: 22 })] })], width: { size: 15, type: WidthType.PERCENTAGE }, borders: noBorder }),
                                         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: row[1], font: "Arial", size: 22 })] })], width: { size: 3, type: WidthType.PERCENTAGE }, borders: noBorder }),
-                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: row[2], font: "Arial", size: 22 })], alignment: AlignmentType.JUSTIFIED })], width: { size: 82, type: WidthType.PERCENTAGE }, borders: noBorder })
+                                        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: safeText(row[2]), font: "Arial", size: 22 })], alignment: AlignmentType.JUSTIFIED })], width: { size: 82, type: WidthType.PERCENTAGE }, borders: noBorder })
                                     ]
                                 }))
                             }),
@@ -261,7 +300,7 @@
                                 spacing: { after: 200 }, alignment: AlignmentType.JUSTIFIED
                             }),
                             new Paragraph({
-                                children: [new TextRun({ text: `1. Target sertifikasi BMN berupa tanah TA ${data.informasiUmum.tahun} pada KPKNL Denpasar dan capaian kinerja sertifikasi s.d ${data.informasiUmum.tanggalAkhirBulan} ${data.informasiUmum.bulan} ${data.informasiUmum.tahun} ialah sebagai berikut:`, font: "Arial", size: 22 })],
+                                children: [new TextRun({ text: `1. Target sertifikasi BMN berupa tanah TA ${reportYear} pada KPKNL Denpasar dan capaian kinerja sertifikasi s.d ${reportDay} ${reportMonth} ${reportYear} ialah sebagai berikut:`, font: "Arial", size: 22 })],
                                 spacing: { after: 200 }, alignment: AlignmentType.JUSTIFIED
                             }),
 
@@ -271,7 +310,7 @@
                                 rows: [
                                     new TableRow({
                                         tableHeader: true,
-                                        children: ["K1", "K2", "K3", "K4", "TARGET Q1", "TOT. TARGET", "Komp B Hukum", "Komp C Adm", "Total", "CAPAIAN Q1", "CAPAIAN TAHUNAN", "S.D. Q1", "PROGNOSA Penjelasan"].map(h => createCell(h, { bold: true, align: AlignmentType.CENTER, shading: { fill: "D9D9D9", type: ShadingType.CLEAR, color: "auto" } }))
+                                        children: ["K1", "K2", "K3", "K4", `TARGET ${quarterLabel}`, "TOT. TARGET", "Komp B Hukum", "Komp C Adm", "Total", `CAPAIAN ${quarterLabel}`, "CAPAIAN TAHUNAN", `S.D. ${quarterLabel}`, "PROGNOSA Penjelasan"].map(h => createCell(h, { bold: true, align: AlignmentType.CENTER, shading: { fill: "D9D9D9", type: ShadingType.CLEAR, color: "auto" } }))
                                     }),
                                     new TableRow({
                                         children: [
@@ -333,11 +372,11 @@
                                 rows: [
                                     new TableRow({
                                         children: [
-                                            new TableCell({ children: [], width: { size: 60, type: WidthType.PERCENTAGE }, borders: noBorder }),
+                                            new TableCell({ children: [new Paragraph({})], width: { size: 60, type: WidthType.PERCENTAGE }, borders: noBorder }),
                                             new TableCell({
                                                 children: [
                                                     new Paragraph({ children: [new TextRun({ text: "Ditandatangani secara elektronik", font: "Arial", size: 22 })], spacing: { after: 800 } }),
-                                                    new Paragraph({ children: [new TextRun({ text: data.informasiUmum.penandatangan, font: "Arial", size: 22, bold: true })] })
+                                                    new Paragraph({ children: [new TextRun({ text: safeText(data.informasiUmum.penandatangan), font: "Arial", size: 22, bold: true })] })
                                                 ],
                                                 width: { size: 40, type: WidthType.PERCENTAGE }, borders: noBorder
                                             })
@@ -361,9 +400,34 @@
                     }]
                 });
 
-                Packer.toBlob(doc).then((blob) => {
-                    saveAs(blob, `Laporan_Sertifikasi_BMN_${data.informasiUmum.bulan}_${data.informasiUmum.tahun}.docx`);
-                });
+                const fileName = `Laporan_Sertifikasi_BMN_${safeFileNamePart(data.informasiUmum.bulan, "Bulan")}_${safeFileNamePart(data.informasiUmum.tahun, "Tahun")}.docx`;
+
+                Packer.toBlob(doc)
+                    .then((blob) => {
+                        const url = URL.createObjectURL(blob);
+
+                        setDownloadInfo((previousInfo) => {
+                            if (previousInfo?.url) {
+                                URL.revokeObjectURL(previousInfo.url);
+                            }
+
+                            return { url, fileName };
+                        });
+
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.download = fileName;
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+
+                        setExportStatus("DOCX berhasil dibuat. Jika unduhan tidak muncul otomatis, gunakan tautan di bawah.");
+                    })
+                    .catch((error) => {
+                        console.error("Gagal membuat DOCX:", error);
+                        setExportStatus("DOCX gagal dibuat.");
+                        alert("DOCX gagal dibuat. Silakan muat ulang halaman dan coba lagi.");
+                    });
             };
 
             const renderInput = (label, name, value, onChange, placeholder = "", isTextarea = false) => (
@@ -372,7 +436,7 @@
                     {isTextarea ? (
                         <textarea
                             name={name}
-                            value={value}
+                            value={value || ""}
                             onChange={onChange}
                             placeholder={placeholder}
                             rows="3"
@@ -382,7 +446,7 @@
                         <input
                             type="text"
                             name={name}
-                            value={value}
+                            value={value || ""}
                             onChange={onChange}
                             placeholder={placeholder}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -410,23 +474,23 @@
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">Jumlah Bidang</label>
-                                    <input type="text" value={item.jumlah} onChange={(e) => handleDetailChange(key, index, 'jumlah', e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm" />
+                                    <input type="text" value={item.jumlah || ""} onChange={(e) => handleDetailChange(key, index, 'jumlah', e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm" />
                                 </div>
                                 <div>
                                     <label className="block text-xs font-medium text-gray-700 mb-1">Keterangan Tambahan</label>
-                                    <input type="text" value={item.ket} onChange={(e) => handleDetailChange(key, index, 'ket', e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm" />
+                                    <input type="text" value={item.ket || ""} onChange={(e) => handleDetailChange(key, index, 'ket', e.target.value)} className="w-full px-2 py-1.5 border rounded text-sm" />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-medium text-gray-700 mb-1">Kendala & Permasalahan</label>
-                                    <textarea value={item.kendala} onChange={(e) => handleDetailChange(key, index, 'kendala', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
+                                    <textarea value={item.kendala || ""} onChange={(e) => handleDetailChange(key, index, 'kendala', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-medium text-gray-700 mb-1">Hal yang sudah dilaksanakan bulan ini</label>
-                                    <textarea value={item.halLalu} onChange={(e) => handleDetailChange(key, index, 'halLalu', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
+                                    <textarea value={item.halLalu || ""} onChange={(e) => handleDetailChange(key, index, 'halLalu', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
                                 </div>
                                 <div className="md:col-span-2">
                                     <label className="block text-xs font-medium text-gray-700 mb-1">Rencana aksi bulan depan</label>
-                                    <textarea value={item.rencana} onChange={(e) => handleDetailChange(key, index, 'rencana', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
+                                    <textarea value={item.rencana || ""} onChange={(e) => handleDetailChange(key, index, 'rencana', e.target.value)} rows="2" className="w-full px-2 py-1.5 border rounded text-sm" />
                                 </div>
                             </div>
                         </div>
@@ -517,15 +581,15 @@
                                         {renderInput("K3", "k3", data.tabelUtama.k3, handleUtamaChange)}
                                         {renderInput("K4", "k4", data.tabelUtama.k4, handleUtamaChange)}
                                         
-                                        {renderInput("TARGET Q1", "targetQ1", data.tabelUtama.targetQ1, handleUtamaChange)}
+                                        {renderInput(`TARGET ${quarterLabel}`, "targetQ1", data.tabelUtama.targetQ1, handleUtamaChange)}
                                         {renderInput("TOT. TARGET", "totTarget", data.tabelUtama.totTarget, handleUtamaChange)}
                                         {renderInput("Komp B (Hukum)", "kompB", data.tabelUtama.kompB, handleUtamaChange)}
                                         {renderInput("Komp C (Adm)", "kompC", data.tabelUtama.kompC, handleUtamaChange)}
                                         
                                         {renderInput("Total", "total", data.tabelUtama.total, handleUtamaChange)}
-                                        {renderInput("CAPAIAN Q1", "capaianQ1", data.tabelUtama.capaianQ1, handleUtamaChange)}
+                                        {renderInput(`CAPAIAN ${quarterLabel}`, "capaianQ1", data.tabelUtama.capaianQ1, handleUtamaChange)}
                                         {renderInput("CAPAIAN TAHUNAN", "capaianTahunan", data.tabelUtama.capaianTahunan, handleUtamaChange)}
-                                        {renderInput("S.D. Q1", "sdQ1", data.tabelUtama.sdQ1, handleUtamaChange)}
+                                        {renderInput(`S.D. ${quarterLabel}`, "sdQ1", data.tabelUtama.sdQ1, handleUtamaChange)}
                                         
                                         <div className="md:col-span-4">
                                             {renderInput("PROGNOSA / Penjelasan", "prognosa", data.tabelUtama.prognosa, handleUtamaChange, "", true)}
@@ -557,11 +621,26 @@
                         </div>
                         
                         {/* Footer area */}
-                        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 text-sm text-gray-500 flex justify-between items-center">
-                            <span>Pastikan seluruh isian sudah lengkap sebelum mengunduh.</span>
-                            <button onClick={generateDocument} className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition font-medium">
-                                Generate DOCX
-                            </button>
+                        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 text-sm text-gray-500">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center">
+                                <div>
+                                    <div>Dokumen dapat dibuat meskipun beberapa isian masih kosong.</div>
+                                    {exportStatus && <div className="mt-1 text-gray-700 font-medium">{exportStatus}</div>}
+                                    {downloadInfo && (
+                                        <a
+                                            href={downloadInfo.url}
+                                            download={downloadInfo.fileName}
+                                            className="inline-flex items-center mt-2 text-blue-700 font-semibold hover:text-blue-900"
+                                        >
+                                            <i className="ph ph-file-doc mr-1"></i>
+                                            Unduh file yang sudah dibuat
+                                        </a>
+                                    )}
+                                </div>
+                                <button onClick={generateDocument} className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 transition font-medium">
+                                    Generate DOCX
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
