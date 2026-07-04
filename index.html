@@ -30,6 +30,7 @@
         const { useState, useEffect } = React;
 
         const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        const FORM_STORAGE_KEY = "sertifikasi-bmn-report-form-data-v1";
 
         const getQuarterLabel = (informasiUmum) => {
             const monthFromDate = parseInt((informasiUmum.periodeLaporan || "").split("-")[1], 10);
@@ -80,12 +81,57 @@
             ]
         };
 
+        const cloneDefaultData = () => JSON.parse(JSON.stringify(defaultData));
+
+        const mergeSavedData = (savedData) => {
+            const baseData = cloneDefaultData();
+
+            if (!savedData || typeof savedData !== "object") {
+                return baseData;
+            }
+
+            return {
+                ...baseData,
+                informasiUmum: {
+                    ...baseData.informasiUmum,
+                    ...(savedData.informasiUmum && typeof savedData.informasiUmum === "object" ? savedData.informasiUmum : {})
+                },
+                tabelUtama: {
+                    ...baseData.tabelUtama,
+                    ...(savedData.tabelUtama && typeof savedData.tabelUtama === "object" ? savedData.tabelUtama : {})
+                },
+                k1: Array.isArray(savedData.k1) ? savedData.k1 : baseData.k1,
+                k2: Array.isArray(savedData.k2) ? savedData.k2 : baseData.k2,
+                k3: Array.isArray(savedData.k3) ? savedData.k3 : baseData.k3,
+                hukum: Array.isArray(savedData.hukum) ? savedData.hukum : baseData.hukum,
+                adm: Array.isArray(savedData.adm) ? savedData.adm : baseData.adm,
+            };
+        };
+
+        const loadSavedData = () => {
+            try {
+                const savedData = window.localStorage.getItem(FORM_STORAGE_KEY);
+                return savedData ? mergeSavedData(JSON.parse(savedData)) : cloneDefaultData();
+            } catch (error) {
+                console.warn("Gagal memuat data form tersimpan:", error);
+                return cloneDefaultData();
+            }
+        };
+
         const App = () => {
             const [activeTab, setActiveTab] = useState('umum');
-            const [data, setData] = useState(defaultData);
+            const [data, setData] = useState(loadSavedData);
             const [downloadInfo, setDownloadInfo] = useState(null);
             const [exportStatus, setExportStatus] = useState("");
             const quarterLabel = getQuarterLabel(data.informasiUmum);
+
+            useEffect(() => {
+                try {
+                    window.localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
+                } catch (error) {
+                    console.warn("Gagal menyimpan data form:", error);
+                }
+            }, [data]);
 
             useEffect(() => {
                 return () => {
@@ -98,7 +144,10 @@
             const handleDateChange = (e) => {
                 const dateVal = e.target.value;
                 if (!dateVal) {
-                    setData({ ...data, informasiUmum: { ...data.informasiUmum, periodeLaporan: dateVal } });
+                    setData((currentData) => ({
+                        ...currentData,
+                        informasiUmum: { ...currentData.informasiUmum, periodeLaporan: dateVal }
+                    }));
                     return;
                 }
                 const [year, month, day] = dateVal.split('-');
@@ -106,39 +155,51 @@
                 
                 const newHal = `Penyampaian Laporan Sertifikasi Barang Milik Negara (BMN) Berupa Tanah pada KPKNL Denpasar s.d ${monthName} ${year}`;
                 
-                setData({
-                    ...data,
+                setData((currentData) => ({
+                    ...currentData,
                     informasiUmum: {
-                        ...data.informasiUmum,
+                        ...currentData.informasiUmum,
                         periodeLaporan: dateVal,
                         tanggalAkhirBulan: parseInt(day, 10).toString(),
                         bulan: monthName,
                         tahun: year,
                         hal: newHal
                     }
-                });
+                }));
             };
 
             const handleUtamaChange = (e) => {
-                setData({ ...data, tabelUtama: { ...data.tabelUtama, [e.target.name]: e.target.value } });
+                const { name, value } = e.target;
+                setData((currentData) => ({
+                    ...currentData,
+                    tabelUtama: { ...currentData.tabelUtama, [name]: value }
+                }));
             };
 
             const handleDetailChange = (kategori, index, field, value) => {
-                const newData = { ...data };
-                newData[kategori][index][field] = value;
-                setData(newData);
+                setData((currentData) => ({
+                    ...currentData,
+                    [kategori]: currentData[kategori].map((row, rowIndex) => (
+                        rowIndex === index ? { ...row, [field]: value } : row
+                    ))
+                }));
             };
 
             const addRow = (kategori) => {
-                const newData = { ...data };
-                newData[kategori].push({ jumlah: "", kendala: "", halLalu: "", rencana: "", ket: "" });
-                setData(newData);
+                setData((currentData) => ({
+                    ...currentData,
+                    [kategori]: [
+                        ...currentData[kategori],
+                        { jumlah: "", kendala: "", halLalu: "", rencana: "", ket: "" }
+                    ]
+                }));
             };
 
             const removeRow = (kategori, index) => {
-                const newData = { ...data };
-                newData[kategori].splice(index, 1);
-                setData(newData);
+                setData((currentData) => ({
+                    ...currentData,
+                    [kategori]: currentData[kategori].filter((_, rowIndex) => rowIndex !== index)
+                }));
             };
 
             const generateDocument = () => {
