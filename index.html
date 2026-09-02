@@ -118,6 +118,16 @@
             }
         };
 
+        const saveFormData = (dataToSave) => {
+            try {
+                window.localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(dataToSave));
+                return true;
+            } catch (error) {
+                console.warn("Gagal menyimpan data form:", error);
+                return false;
+            }
+        };
+
         const App = () => {
             const [activeTab, setActiveTab] = useState('umum');
             const [data, setData] = useState(loadSavedData);
@@ -126,11 +136,7 @@
             const quarterLabel = getQuarterLabel(data.informasiUmum);
 
             useEffect(() => {
-                try {
-                    window.localStorage.setItem(FORM_STORAGE_KEY, JSON.stringify(data));
-                } catch (error) {
-                    console.warn("Gagal menyimpan data form:", error);
-                }
+                saveFormData(data);
             }, [data]);
 
             useEffect(() => {
@@ -208,6 +214,7 @@
                     return;
                 }
 
+                saveFormData(data);
                 setExportStatus("Membuat DOCX...");
 
                 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, BorderStyle, AlignmentType, VerticalAlign, ShadingType } = window.docx;
